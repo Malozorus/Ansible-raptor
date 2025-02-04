@@ -1,0 +1,48 @@
+- name: Docker login to GHCR
+  docker_login:
+    registry_url: ghcr.io
+    username: "{{ github_username }}"
+    password: "{{ github_pat }}"
+
+- name: Get container info
+  docker_container_info:
+    name: webcv
+  register: container_info
+
+- name: Install webcv
+  docker_container:
+    name: webcv
+    image: "{{ webcv_image }}"
+    restart_policy: always
+    networks:
+      - name: "{{ network_services_name }}"
+  when: not container_info.exists
+
+- name: Get container info
+  docker_container_info:
+    name: webcv
+  register: container_info
+
+- name: Debug
+  debug:
+    msg: "IP de webcv: {{ container_info.container.NetworkSettings.Networks.n_services.IPAddress }} "
+
+
+- name: Add Proxy Host in Nginx Proxy Manager
+  uri:
+    url: "http://{{ nginx_host }}/api/nginx/proxy-hosts"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ npm_api_token }}"
+    body_format: json
+    body:
+      domain_names: ["{{ webcv_domain }}"]
+      forward_scheme: "http"
+      forward_host: "webcv"
+      forward_port: 8080
+      allow_websocket_upgrade: true
+      block_exploits: true
+      ssl_forced: false
+    status_code: 201
+  ignore_errors: true

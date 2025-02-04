@@ -1,0 +1,71 @@
+- name: Check if nginx volume exists
+  community.docker.docker_volume_info:
+    name: "{{ nginx_volume }}"
+  register: nginx_volume_info
+
+- name: Check if letsencrypt volume exists
+  community.docker.docker_volume_info:
+    name: letsencrypt
+  register: letsencrypt_volume_info
+  
+- name: Create nginx volume data 
+  community.docker.docker_volume:
+    name: "{{ nginx_volume }}"
+  when: not nginx_volume_info.exists
+
+- name: Create letsencrypt volume data
+  docker_volume:
+    name: letsencrypt
+  when: not letsencrypt_volume_info.exists
+
+- name: Check if nginx container exists
+  community.docker.docker_container_info:
+    name: "{{ nginx_container_name }}"
+  register: nginx_container_info
+  
+
+- name: Deploy Nginx Proxy Manager
+  docker_container:
+    name: "{{ nginx_container_name }}"
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart_policy: unless-stopped
+    networks:
+      - name: "{{ network_services_name }}"
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - "{{ nginx_volume }}:/data"
+      - "letsencrypt:/etc/letsencrypt"
+    env:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+      INITIAL_ADMIN_EMAIL: "{{ nginxpm_email }}"
+      INITIAL_ADMIN_PASSWORD: "{{ nginxpm_password }}"
+  register: npm_container
+  when: not nginx_container_info.exists
+
+- name: Wait for NPM to start
+  wait_for:
+    host: "0.0.0.0"
+    port: 81
+    timeout: 60
+    delay: 15
+  when: not nginx_container_info.exists
+
+- name: Get API token from Nginx Proxy Manager
+  uri:
+    url: "http://0.0.0.0:81/api/tokens"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      identity: "{{ nginxpm_email }}"
+      secret: "{{ nginxpm_password }}"
+    return_content: yes
+  register: npm_token_response
+
+- name: Extract token
+  set_fact:
+    npm_api_token: "{{ npm_token_response.json.token }}"

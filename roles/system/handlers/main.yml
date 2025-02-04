@@ -1,0 +1,17 @@
+---
+- name: Restart SSH deamon
+  service:
+    name: ssh
+    state: restarted
+
+- name: Restart SSH socket
+  systemd:
+    name: ssh.socket
+    state: restarted
+    enabled: yes
+
+- name: Restart daemon
+  systemd:
+    daemon_reload: yes
+  become: yes
+    

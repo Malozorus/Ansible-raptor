@@ -1,0 +1,86 @@
+- name: Check if portainer_data volume exists
+  community.docker.docker_volume_info:
+    name: portainer_data
+  register: portainer_data_volume_info
+  
+- name: Create portainer volume data 
+  community.docker.docker_volume:
+    name: portainer_data
+  when: not portainer_data_volume_info.exists
+
+- name: Check if Portainer container exists
+  community.docker.docker_container_info:
+    name: portainer
+  register: portainer_info
+
+- name: Install portainer
+  community.docker.docker_container:
+    name: portainer
+    image: portainer/portainer-ce
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    restart_policy: always
+    networks:
+      - name: "{{ network_services_name }}"
+  when: not portainer_info.exists
+
+- name: Get container info
+  community.docker.docker_container_info:
+    name: portainer
+  register: container_info
+
+- name: Debug
+  debug:
+    msg: "IP de portainer: {{ container_info.container.NetworkSettings.Networks.n_services.IPAddress }}"
+
+- name: Attempt to authenticate with existing credentials
+  uri:
+    url: "https://{{ container_info.container.NetworkSettings.Networks.n_services.IPAddress }}:9443/api/auth"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    validate_certs: no
+    body_format: json
+    body:
+      username: "{{ portainer_username }}"
+      password: "{{ portainer_password }}"
+    return_content: yes
+    status_code: 200
+  register: auth_response
+  ignore_errors: true
+
+- name: Set admin credential 
+  uri:
+    url: "https://{{ container_info.container.NetworkSettings.Networks.n_services.IPAddress }}:9443/api/users/admin/init"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    validate_certs: no
+    body_format: json
+    body:
+      username: "{{ portainer_username }}"
+      password: "{{ portainer_password }}"
+    return_content: yes
+    status_code: 200
+  when: auth_response.failed
+
+
+- name: Add Proxy Host in Nginx Proxy Manager
+  uri:
+    url: "http://{{ nginx_host }}/api/nginx/proxy-hosts"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ npm_api_token }}"
+    body_format: json
+    body:
+      domain_names: ["{{ portainer_domain }}"]
+      forward_scheme: "https"
+      forward_host: "portainer"
+      forward_port: 9443
+      allow_websocket_upgrade: true
+      block_exploits: true
+      ssl_forced: false
+    status_code: 201
+  ignore_errors: true

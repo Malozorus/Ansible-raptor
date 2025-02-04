@@ -1,0 +1,45 @@
+- name: Reject everything and enable UFW
+  ufw:
+    state: enabled
+    policy: reject
+    log: true
+
+- name: Allow TCP from anywhere on port 80
+  ufw: 
+    rule: allow
+    proto: tcp
+    port: 80
+
+- name: Allow TCP from anywhere on port 443
+  ufw: 
+    rule: allow
+    proto: tcp
+    port: 443
+
+- name: Allow ssh from anywhere on port {{ ssh_port }}
+  ufw: 
+    rule: allow
+    proto: tcp
+    port: "{{ ssh_port }}"
+
+- name: Allow TCP from {{ local_network }} on port 81
+  ufw: 
+    rule: allow
+    proto: tcp
+    port: 81
+    src: "{{ local_network }}"
+
+- name: Allow TCP from {{ public_ip }} on port 81
+  ufw: 
+    rule: allow
+    proto: tcp
+    port: 81
+    src: "{{ public_ip }}"
+
+- name: Reload ufw
+  ufw:
+    state: reloaded
+
+- name: Enable ufw
+  ufw:
+    state: enabled

@@ -1,0 +1,6 @@
+---
+- include_tasks: essential.yml
+- include_tasks: nginxpm.yml
+- include_tasks: portainer.yml
+- include_tasks: open-webui.yml
+- include_tasks: webcv.yml

@@ -1,0 +1,97 @@
+- name: basic update
+  hosts: servers
+  become: yes
+  tasks:
+    - name: Verify sudo access
+      command: whoami
+
+    - name: Update server
+      apt:
+        update_cache: yes
+        upgrade: yes
+        autoremove: yes
+    - name: Check if reboot required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+
+    - name: Reboot if required
+      reboot:
+        msg: Rebooting due to a kernel update
+      when: reboot_required_file.stat.exists
+
+- name: install dependency
+  hosts: servers
+  become: yes
+  vars:
+    dependencies:
+      - curl
+      - git
+      - unzip
+      - build-essential
+      - libssl-dev
+      - net-tools
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install dependencies
+      apt:
+        name: "{{ dependencies }}"
+        state: present
+
+- name: auto-update dependency. 
+  hosts: servers
+  become: yes
+  tasks:
+    - name: Ensure unattended-upgrades is installed
+      apt:
+        name: unattended-upgrades
+        state: present
+        update_cache: yes
+
+    - name: Reconfigure unattended-upgrades with low priority
+      command: dpkg-reconfigure --priority=medium unattended-upgrades
+      
+
+    - name: Change directory to /etc/apt/apt.conf.d/
+      file:
+        path: /etc/apt/apt.conf.d/
+        state: directory
+
+    - name: Configure auto-upgrades
+      copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+      become: yes
+    
+- name: Free port 53
+  hosts: servers
+  become: yes
+  tasks:
+    - name: Find the process using port 53
+      shell: "netstat -tuln | grep ':53 ' | awk '{print $7}' | cut -d'/' -f1"
+      register: port_53_process
+      changed_when: false
+    - name: Debug the process using port 53
+      debug:
+        var: port_53_process.stdout
+
+    - name: Stop the process using port 53 (if found)
+      command: "kill {{ port_53_process.stdout }}"
+      when: port_53_process.stdout != ""
+      ignore_errors: yes
+
+    - name: Ensure the service does not restart (optional)
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      loop:
+        - named  # Example: BIND DNS server
+        - systemd-resolved  # Example: systemd-resolved service
+      ignore_errors: yes
+  

@@ -1,0 +1,65 @@
+- name: Disable SSH password
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#PasswordAuthentication yes"
+    line: "PasswordAuthentication no"
+  notify: Restart SSH deamon
+
+- name: Permit pubkey login
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#PubkeyAuthentication yes"
+    line: "PubkeyAuthentication yes"
+  notify: Restart SSH deamon
+
+- name: Disable root login
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#PermitRootLogin no"
+    line: "PermitRootLogin no"
+  notify: Restart SSH deamon
+
+- name: Disable port 22 ssh
+  lineinfile:
+    dest: /etc/systemd/system/ssh.service.requires/ssh.socket
+    regexp: "^ListenStream=22"
+    line: "ListenStream="
+  notify: Restart daemon
+
+- name: Change ssh port
+  lineinfile:
+    path: /etc/systemd/system/ssh.service.requires/ssh.socket
+    insertafter: "ListenStream="
+    line: "ListenStream={{ ssh_port }}"
+  notify: Restart daemon
+
+- meta: flush_handlers  
+
+- name: Restart SSH socket
+  systemd:
+    name: ssh.socket
+    state: restarted
+    enabled: yes
+
+
+# Change the SSH Port in sshd_config (optional if you want it in the config as well)
+- name: Change SSH Port in sshd_config (optional)
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#Port 22"
+    line: "Port {{ ssh_port }}"
+  notify: Restart SSH deamon
+
+- name: Change SSH Port in ssh_config (optional)
+  lineinfile:
+    dest: /etc/ssh/ssh_config
+    regexp: "^#   Port 22"
+    line: "Port {{ ssh_port }}"
+  notify: Restart SSH deamon
+
+- meta: flush_handlers  
+
+- name: Define new ssh port
+  set_fact:
+    ansible_port: "{{ ssh_port }}"
+

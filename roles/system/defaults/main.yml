@@ -1,0 +1,6 @@
+username: malozorus
+password: changeme
+shell: /bin/bash
+packages:
+  - btop
+  - net-tools

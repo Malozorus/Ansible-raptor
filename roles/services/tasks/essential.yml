@@ -1,0 +1,9 @@
+- name: Check if Docker network exists
+  community.docker.docker_network_info:
+    name: "{{ network_services_name }}"
+  register: network_info
+
+- name: Create docker network for services
+  community.docker.docker_network:
+    name: "{{ network_services_name }}"
+  when: not network_info.exists

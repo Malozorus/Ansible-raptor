@@ -1,0 +1,56 @@
+- name: Check if open-webui volume exists
+  docker_volume_info:
+    name: open-webui
+  register: owebui_volume_info
+  
+- name: Create open-webui volume data 
+  docker_volume:
+    name: open-webui
+  when: not owebui_volume_info.exists
+
+- name: Check if open-webui container exists
+  docker_container_info:
+    name: open-webui
+  register: owebui_info
+
+- name: Install open-webui
+  docker_container:
+    name: open-webui
+    image: ghcr.io/open-webui/open-webui:main
+    volumes:
+      - open-webui:/app/backend/data
+    restart_policy: always
+    networks:
+      - name: "{{ network_services_name }}"
+    env:
+      OPENAI_API_KEY: "{{ OPENAI_API_KEY }}"
+  when: not owebui_info.exists
+
+- name: Get container info
+  docker_container_info:
+    name: open-webui
+  register: container_info
+
+- name: Debug
+  debug:
+    msg: "IP de open-webui: {{ container_info.container.NetworkSettings.Networks.n_services.IPAddress }} "
+
+
+- name: Add Proxy Host in Nginx Proxy Manager
+  uri:
+    url: "http://{{ nginx_host }}/api/nginx/proxy-hosts"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ npm_api_token }}"
+    body_format: json
+    body:
+      domain_names: ["{{ openwebui_domain }}"]
+      forward_scheme: "http"
+      forward_host: "open-webui"
+      forward_port: 8080
+      allow_websocket_upgrade: true
+      block_exploits: true
+      ssl_forced: false
+    status_code: 201
+  ignore_errors: true
